@@ -1,4 +1,4 @@
-# Build-Ausgaben
+# Build output
 bin/
 obj/
 artifacts/
@@ -6,7 +6,17 @@ publish/
 *.user
 .vs/
 
-# Laufzeitdateien
+# Runtime files
 *.log
 *.log.old
 sensors.txt
+
+# Stray files in the project root (e.g. photos or downloads copied here by accident).
+# Images that belong to the project live in docs/ or src/.
+/*.jpg
+/*.jpeg
+/*.png
+/*.gif
+/*.heic
+/*.mp4
+/*.pdf
