@@ -1,0 +1,12 @@
+# Build-Ausgaben
+bin/
+obj/
+artifacts/
+publish/
+*.user
+.vs/
+
+# Laufzeitdateien
+*.log
+*.log.old
+sensors.txt
