@@ -121,7 +121,7 @@ internal static class L
     public static string GamesColumnProcess => S("Programm", "Program");
     public static string GamesColumnWindow => S("Fenster", "Window");
     public static string UpdatesGroup => "Updates";
-    public static string UpdatesAuto => S("Beim Start und regelmäßig nach neuen Versionen suchen", "Check for new versions at startup and regularly");
+    public static string UpdatesAuto => S("Beim Start nach neuen Versionen suchen", "Check for new versions at startup");
     public static string UpdatesCheckNow => S("Jetzt nach Updates suchen", "Check for updates now");
     public static string InstalledVersion(Version v) => S($"Installierte Version: {v}", $"Installed version: {v}");
     public static string AskSaveChanges => S("Änderungen übernehmen?", "Apply changes?");

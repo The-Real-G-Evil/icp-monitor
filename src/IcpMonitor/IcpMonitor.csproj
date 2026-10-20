@@ -14,7 +14,7 @@
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <SatelliteResourceLanguages>de;en</SatelliteResourceLanguages>
-    <Version>0.3.1</Version>
+    <Version>0.3.2</Version>
     <Product>ICP Monitor</Product>
     <Description>Zeigt PC-Sensorwerte auf dem Winwing F-16 ICP an</Description>
   </PropertyGroup>

@@ -33,7 +33,7 @@ internal sealed class AppConfig
     /// <summary>Pause, solange ein Flugsimulator o. ae. das ICP nutzt.</summary>
     public PauseConfig Pause { get; set; } = new();
 
-    /// <summary>Beim Start und taeglich auf GitHub nach neuen Versionen suchen.</summary>
+    /// <summary>Einmal beim Start auf GitHub nach einer neuen Version suchen.</summary>
     public bool CheckForUpdates { get; set; } = true;
 
     public static string FilePath => AppPaths.ConfigFile;

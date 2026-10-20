@@ -74,8 +74,9 @@ the currently running programs. The tray menu also offers a manual "Pause".
 
 ## Updates
 
-The app checks GitHub for a newer version at startup and every six hours and shows a notification at
-the tray icon. After confirmation it downloads the installer, verifies it against the SHA-256 checksum
+The app checks GitHub for a newer version once, shortly after startup, and shows a notification at the
+tray icon. If a simulator is running at that moment, the notification waits until the game is closed.
+A manual check is available in the tray menu. After confirmation it downloads the installer, verifies it against the SHA-256 checksum
 published with the release and installs it without further prompts; the new version starts afterwards.
 Nothing is installed without a matching checksum. Can be turned off in the settings window ("General" tab).
 

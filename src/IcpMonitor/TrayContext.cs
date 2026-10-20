@@ -26,13 +26,12 @@ internal sealed class TrayContext : ApplicationContext
     private Language menuLanguage;
     private SettingsForm? settingsForm;
 
-    // Update-Suche: kurz nach dem Start, danach alle paar Stunden.
-    private static readonly TimeSpan FirstUpdateCheck = TimeSpan.FromSeconds(30);
-    private static readonly TimeSpan UpdateCheckInterval = TimeSpan.FromHours(6);
+    // Update-Suche: nur einmal kurz nach dem Start, damit Meldungen nicht mitten im Spiel auftauchen.
+    private static readonly TimeSpan StartupUpdateCheck = TimeSpan.FromSeconds(30);
     private readonly UpdateService updates = new();
     private readonly System.Windows.Forms.Timer updateTimer;
     private UpdateInfo? availableUpdate;
-    private Version? notifiedVersion;
+    private bool updateNoticePending;
     private bool updateBusy;
 
     public TrayContext(MonitorApp app, bool isAdmin)
@@ -67,24 +66,34 @@ internal sealed class TrayContext : ApplicationContext
                 notifyIcon.ContextMenuStrip = BuildMenu();
                 old?.Dispose();
             }
+            // Update-Hinweis erst zeigen, wenn gerade kein Simulator laeuft.
+            if (updateNoticePending && !app.IsPaused) ShowUpdateNotice();
             RefreshTooltip();
         };
         refreshTimer.Start();
         RefreshTooltip();
 
         notifyIcon.BalloonTipClicked += (_, _) => { if (availableUpdate != null) InstallUpdate(availableUpdate); };
-        updateTimer = new System.Windows.Forms.Timer { Interval = (int)FirstUpdateCheck.TotalMilliseconds };
+        updateTimer = new System.Windows.Forms.Timer { Interval = (int)StartupUpdateCheck.TotalMilliseconds };
         updateTimer.Tick += async (_, _) =>
         {
-            updateTimer.Interval = (int)UpdateCheckInterval.TotalMilliseconds;
+            updateTimer.Stop(); // nur einmal pro Programmstart
             if (app.UpdateCheckEnabled) await CheckForUpdatesAsync(interactive: false);
         };
         updateTimer.Start();
     }
 
+    private void ShowUpdateNotice()
+    {
+        updateNoticePending = false;
+        if (availableUpdate == null) return;
+        notifyIcon.ShowBalloonTip(15000, L.UpdateTitle, L.UpdateAvailableBalloon(availableUpdate.Version), ToolTipIcon.Info);
+    }
+
     /// <summary>
-    /// Sucht nach einer neuen Version. Automatisch: nur ein Hinweis am Tray-Symbol (einmal je Version).
-    /// Von Hand: Ergebnis immer per Meldung, bei neuer Version direkt die Installationsfrage.
+    /// Sucht nach einer neuen Version. Automatisch (einmal nach dem Start): nur ein Hinweis am Tray-Symbol,
+    /// waehrend einer Simulator-Pause zurueckgehalten. Von Hand: Ergebnis immer per Meldung, bei neuer
+    /// Version direkt die Installationsfrage.
     /// </summary>
     public async Task CheckForUpdatesAsync(bool interactive)
     {
@@ -96,12 +105,15 @@ internal sealed class TrayContext : ApplicationContext
             availableUpdate = result.Status == UpdateStatus.Available ? result.Info : null;
             Log.Info($"Update-Suche: {result.Status} {result.Info?.Version}");
 
-            if (availableUpdate != null && !interactive && notifiedVersion != availableUpdate.Version)
+            if (!interactive)
             {
-                notifiedVersion = availableUpdate.Version;
-                notifyIcon.ShowBalloonTip(15000, L.UpdateTitle, L.UpdateAvailableBalloon(availableUpdate.Version), ToolTipIcon.Info);
+                if (availableUpdate != null)
+                {
+                    updateNoticePending = true;
+                    if (!app.IsPaused) ShowUpdateNotice();
+                }
+                return;
             }
-            if (!interactive) return;
 
             switch (result.Status)
             {
