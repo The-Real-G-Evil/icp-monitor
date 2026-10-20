@@ -53,6 +53,9 @@ internal static class L
     public static string TrayShowPage => S("Seite anzeigen", "Show page");
     public static string TrayDisplayOn => S("Display an", "Display on");
     public static string TrayTestPage => S("ICP-Testseite anzeigen", "Show ICP test page");
+    public static string TrayAutostart => S("Mit Windows starten", "Start with Windows");
+    public static string AutostartFailed => S("Der Autostart konnte nicht geändert werden. Details stehen in der Logdatei.",
+                                              "Autostart could not be changed. See the log file for details.");
     public static string TrayRestartAdmin => S("Als Administrator neu starten (mehr Sensoren)", "Restart as administrator (more sensors)");
     public static string TrayOpenSensors => S("Sensorliste öffnen", "Open sensor list");
     public static string TrayOpenConfig => S("Konfigurationsdatei öffnen", "Open configuration file");

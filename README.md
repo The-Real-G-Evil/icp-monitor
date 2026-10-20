@@ -3,23 +3,37 @@
 Zeigt PC-Sensorwerte auf dem DED-Display eines Winwing/WinCTRL F-16 ICP an. Läuft im Hintergrund
 mit Symbol im Infobereich der Taskleiste und wird über die Tasten und Potis des ICP bedient.
 
-## Bauen und starten
+## Installation
 
-Voraussetzung: .NET 10 SDK.
+`artifacts\ICP-Monitor-Setup-<Version>.exe` ausführen. Der Installer bringt die .NET-Laufzeit mit,
+installiert nach `C:\Program Files\ICP Monitor`, legt einen Startmenü-Eintrag an und richtet auf
+Wunsch den Autostart ein. Eine laufende Instanz wird beim Update automatisch beendet.
+
+**Autostart** läuft über die Windows-Aufgabenplanung (Aufgabe „ICP Monitor“): Start bei der Anmeldung
+mit Administratorrechten, ohne UAC-Abfrage. Ein- und ausschalten im Tray-Menü unter „Mit Windows starten“.
+
+Mit Administratorrechten liefert die App zusätzlich CPU-Temperatur, CPU-Leistung, Takt,
+Mainboard-Lüfter und Datenträger-Temperaturen. Ohne Autostart: Tray-Menü > „Als Administrator neu starten“.
+
+Einstellungen, Log und Sensorliste liegen in `%AppData%\ICP Monitor` und bleiben bei Updates und
+Deinstallation erhalten.
+
+## Bauen
+
+Voraussetzung: .NET 10 SDK; für den Installer zusätzlich Inno Setup 6 (`winget install JRSoftware.InnoSetup`).
 
 ```
 dotnet build IcpMonitor.slnx
-src\IcpMonitor\bin\Debug\net10.0-windows\win-x64\IcpMonitor.exe
+.\build-installer.ps1
 ```
 
-Als Administrator gestartet liefert die App zusätzlich CPU-Temperatur, CPU-Leistung, Takt,
-Mainboard-Lüfter und Datenträger-Temperaturen (Tray-Menü > „Als Administrator neu starten“).
-
-Startparameter: `--settings` öffnet direkt das Einstellungsfenster.
+Startparameter: `--settings` öffnet direkt das Einstellungsfenster, `--autostart on|off` richtet
+den Autostart ein bzw. entfernt ihn (braucht Administratorrechte).
 
 ## Bedienung
 
-Tray-Symbol: Linksklick = nächste Seite, Doppelklick = Einstellungen, Rechtsklick = Menü.
+Tray-Symbol: Linksklick = nächste Seite, Doppelklick = Einstellungen, Rechtsklick = Menü
+(u. a. „Mit Windows starten“).
 
 | ICP | Funktion |
 | --- | --- |
@@ -52,4 +66,4 @@ Der Dobber wählt einen Lichtkanal (0–15), das Poti `RET DEPR` setzt seinen We
   einen Kanal für den Kontrast gibt es nicht. Die Kanäle stehen in `config.json` unter `lights`.
 - **Sensoren** über LibreHardwareMonitorLib. Beim Start entsteht `sensors.txt` mit allen gefundenen Sensoren.
 - **Schrift**: DED-Pixelschrift 8×13 aus [DedSharp](https://github.com/mnantel/dedcustomizer) (MIT, siehe `Assets/ded_font.LICENSE.txt`).
-- **Log**: `icp-monitor.log` neben der exe. `"logDisplay": true` in `config.json` schreibt zusätzlich jeden Displayinhalt ins Log.
+- **Log**: `%AppData%\ICP Monitor\icp-monitor.log`. `"logDisplay": true` in `config.json` schreibt zusätzlich jeden Displayinhalt ins Log.

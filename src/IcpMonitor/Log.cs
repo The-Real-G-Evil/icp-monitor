@@ -2,13 +2,13 @@ using System.Diagnostics;
 
 namespace IcpMonitor;
 
-/// <summary>Einfaches Datei-Log neben der exe. Rotiert ab 1 MB.</summary>
+/// <summary>Einfaches Datei-Log in <see cref="AppPaths.DataDir"/>. Rotiert ab 1 MB.</summary>
 internal static class Log
 {
     private const long MaxSize = 1_000_000;
     private static readonly object Sync = new();
 
-    public static string FilePath { get; } = Path.Combine(AppContext.BaseDirectory, "icp-monitor.log");
+    public static string FilePath => AppPaths.LogFile;
 
     public static void Info(string message) => Write("INFO ", message);
 

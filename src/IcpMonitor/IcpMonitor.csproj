@@ -12,7 +12,11 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>false</SelfContained>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
-    <Version>0.1.0</Version>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+    <SatelliteResourceLanguages>de;en</SatelliteResourceLanguages>
+    <Version>0.2.0</Version>
+    <Product>ICP Monitor</Product>
+    <Description>Zeigt PC-Sensorwerte auf dem Winwing F-16 ICP an</Description>
   </PropertyGroup>
 
   <ItemGroup>
@@ -22,8 +26,9 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Assets\ded_font.bmp" LogicalName="IcpMonitor.ded_font.bmp" />
+    <EmbeddedResource Include="Assets\app.ico" LogicalName="IcpMonitor.app.ico" />
     <None Include="Assets\ded_font.LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
-    <None Update="config.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="config.default.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

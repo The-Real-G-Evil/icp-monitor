@@ -44,7 +44,7 @@ internal sealed class SettingsForm : Form
         draft = app.CloneConfig();
 
         Text = L.SettingsTitle;
-        Icon = TrayContext.CreateIcon();
+        Icon = TrayContext.CreateIcon(SystemInformation.IconSize);
         Font = new Font("Segoe UI", 9f);
         AutoScaleMode = AutoScaleMode.Dpi;
         FormBorderStyle = FormBorderStyle.FixedSingle;

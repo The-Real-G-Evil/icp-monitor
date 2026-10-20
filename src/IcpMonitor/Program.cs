@@ -15,6 +15,14 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        // "--autostart on|off": nur Autostart einrichten/entfernen und beenden (vom Tray-Menue erhoeht gestartet und vom Installer).
+        int autostartIndex = Array.IndexOf(args, Autostart.Argument);
+        if (autostartIndex >= 0)
+        {
+            bool enable = autostartIndex + 1 < args.Length && args[autostartIndex + 1].Equals("on", StringComparison.OrdinalIgnoreCase);
+            return Autostart.Apply(enable);
+        }
+
         AppConfig config = AppConfig.Load();
         L.SetLanguage(config.Language);
 

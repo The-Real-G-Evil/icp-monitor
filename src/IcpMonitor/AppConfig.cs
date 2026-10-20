@@ -30,7 +30,7 @@ internal sealed class AppConfig
     /// <summary>Hardware-Lichtkanaele, die von den Potis SYM, BRT und CONT gesteuert werden.</summary>
     public LightConfig Lights { get; set; } = new();
 
-    public static string FilePath { get; } = Path.Combine(AppContext.BaseDirectory, "config.json");
+    public static string FilePath => AppPaths.ConfigFile;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -61,13 +61,15 @@ internal sealed class AppConfig
         AppConfig config;
         try
         {
-            if (File.Exists(FilePath))
+            string? source = FirstExisting(FilePath, AppPaths.LegacyConfigFile, AppPaths.DefaultConfigFile);
+            if (source != null)
             {
-                config = JsonSerializer.Deserialize<AppConfig>(File.ReadAllText(FilePath), JsonOptions) ?? new AppConfig();
+                config = JsonSerializer.Deserialize<AppConfig>(File.ReadAllText(source), JsonOptions) ?? new AppConfig();
+                if (source != FilePath) Log.Info($"Konfiguration uebernommen aus {source}");
             }
             else
             {
-                Log.Warn($"Keine config.json gefunden ({FilePath}), verwende Standardwerte.");
+                Log.Warn("Keine config.json gefunden, verwende Standardwerte.");
                 config = new AppConfig();
             }
         }
@@ -77,8 +79,16 @@ internal sealed class AppConfig
             config = new AppConfig();
         }
         config.Normalize();
+        if (!File.Exists(FilePath))
+        {
+            // Erster Start: Datei im Benutzerprofil anlegen, damit sie per Tray-Menue geoeffnet werden kann.
+            try { config.Save(); }
+            catch (Exception ex) { Log.Warn($"config.json konnte nicht angelegt werden: {ex.Message}"); }
+        }
         return config;
     }
+
+    private static string? FirstExisting(params string[] paths) => paths.FirstOrDefault(File.Exists);
 
     public void Save()
     {

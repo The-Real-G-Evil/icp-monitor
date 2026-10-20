@@ -1,7 +1,5 @@
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Drawing.Drawing2D;
-using System.Runtime.InteropServices;
 using IcpMonitor.Pages;
 using IcpMonitor.Sensors;
 using IcpMonitor.Ui;
@@ -20,6 +18,7 @@ internal sealed class TrayContext : ApplicationContext
     private ToolStripMenuItem pagesItem = null!;
     private ToolStripMenuItem displayItem = null!;
     private ToolStripMenuItem testPageItem = null!;
+    private ToolStripMenuItem autostartItem = null!;
     private Language menuLanguage;
     private SettingsForm? settingsForm;
 
@@ -68,6 +67,7 @@ internal sealed class TrayContext : ApplicationContext
         pagesItem = new ToolStripMenuItem(L.TrayShowPage);
         displayItem = new ToolStripMenuItem(L.TrayDisplayOn, null, (_, _) => app.SetDisplayOn(!app.DisplayOn));
         testPageItem = new ToolStripMenuItem(L.TrayTestPage, null, (_, _) => app.ToggleTestPage());
+        autostartItem = new ToolStripMenuItem(L.TrayAutostart, null, (_, _) => ToggleAutostart());
 
         var menu = new ContextMenuStrip();
         menu.Items.Add(new ToolStripMenuItem(L.TraySettings, null, (_, _) => ShowSettings()) { Font = new Font(menu.Font, FontStyle.Bold) });
@@ -114,6 +114,7 @@ internal sealed class TrayContext : ApplicationContext
         statusItem.Text = app.DeviceConnected ? L.TrayConnected : L.TrayDisconnected;
         displayItem.Checked = app.DisplayOn;
         testPageItem.Checked = app.TestPageActive;
+        autostartItem.Checked = Autostart.IsEnabled();
 
         // Die Seiten spiegeln die sechs ICP-Tasten wider.
         pagesItem.DropDownItems.Clear();
@@ -141,6 +142,15 @@ internal sealed class TrayContext : ApplicationContext
             $"CPU {Value(s.CpuLoad, "%")} {Value(s.CpuTemp, "°C")}\n" +
             $"GPU {Value(s.GpuLoad, "%")} {Value(s.GpuTemp, "°C")}";
         notifyIcon.Text = text.Length > 127 ? text[..127] : text;
+    }
+
+    private void ToggleAutostart()
+    {
+        bool target = !Autostart.IsEnabled();
+        if (Autostart.Set(target) == false)
+        {
+            MessageBox.Show(L.AutostartFailed, "ICP Monitor", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
     }
 
     private void RestartAsAdmin()
@@ -176,35 +186,13 @@ internal sealed class TrayContext : ApplicationContext
         Process.Start(new ProcessStartInfo(path) { UseShellExecute = true })?.Dispose();
     }
 
-    /// <summary>Kleines DED-Symbol: gruene Textzeilen auf dunklem Display.</summary>
-    internal static Icon CreateIcon()
+    /// <summary>Programmsymbol (Assets/app.ico) in der passenden Groesse, Standard: Infobereich.</summary>
+    internal static Icon CreateIcon(Size? size = null)
     {
-        using var bitmap = new Bitmap(32, 32);
-        using (Graphics g = Graphics.FromImage(bitmap))
-        {
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-            g.Clear(Color.Transparent);
-            using var frame = new SolidBrush(Color.FromArgb(60, 60, 60));
-            using var screen = new SolidBrush(Color.FromArgb(10, 20, 10));
-            using var line = new SolidBrush(Color.FromArgb(80, 255, 80));
-            g.FillRectangle(frame, 0, 4, 32, 24);
-            g.FillRectangle(screen, 2, 6, 28, 20);
-            int[] widths = [20, 26, 14, 22];
-            for (int i = 0; i < widths.Length; i++) g.FillRectangle(line, 4, 8 + i * 4, widths[i], 2);
-        }
-        IntPtr handle = bitmap.GetHicon();
-        try
-        {
-            return (Icon)Icon.FromHandle(handle).Clone();
-        }
-        finally
-        {
-            DestroyIcon(handle);
-        }
+        using Stream stream = typeof(TrayContext).Assembly.GetManifestResourceStream("IcpMonitor.app.ico")
+            ?? throw new InvalidOperationException("Ressource app.ico fehlt.");
+        return new Icon(stream, size ?? SystemInformation.SmallIconSize);
     }
-
-    [DllImport("user32.dll")]
-    private static extern bool DestroyIcon(IntPtr handle);
 
     protected override void Dispose(bool disposing)
     {

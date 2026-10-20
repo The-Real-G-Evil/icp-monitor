@@ -23,7 +23,7 @@ internal sealed partial class SensorService : IDisposable
 
     public SystemSnapshot Current { get; private set; } = SystemSnapshot.Empty;
 
-    public static string DumpPath { get; } = Path.Combine(AppContext.BaseDirectory, "sensors.txt");
+    public static string DumpPath => AppPaths.SensorDumpFile;
 
     public void Start()
     {
