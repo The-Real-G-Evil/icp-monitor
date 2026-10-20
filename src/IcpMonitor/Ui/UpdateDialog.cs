@@ -38,14 +38,14 @@ internal sealed class UpdateDialog : Form
         Shown += async (_, _) => await DownloadAsync();
     }
 
-    /// <summary>Pfad des heruntergeladenen und geprueften Installers, sonst null.</summary>
-    public string? InstallerPath { get; private set; }
+    /// <summary>Heruntergeladener, gepruefter und gesperrter Installer, sonst null. Der Aufrufer gibt ihn frei.</summary>
+    public VerifiedInstaller? Installer { get; private set; }
 
     private async Task DownloadAsync()
     {
         try
         {
-            InstallerPath = await service.DownloadAsync(info, new Progress<int>(p => progressBar.Value = Math.Clamp(p, 0, 100)), cts.Token);
+            Installer = await service.DownloadAsync(info, new Progress<int>(p => progressBar.Value = Math.Clamp(p, 0, 100)), cts.Token);
             DialogResult = DialogResult.OK;
         }
         catch (OperationCanceledException)

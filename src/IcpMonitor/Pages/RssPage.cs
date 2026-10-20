@@ -1,7 +1,7 @@
-using System.Diagnostics;
 using IcpMonitor.Device;
 using IcpMonitor.Display;
 using IcpMonitor.Rss;
+using IcpMonitor.Security;
 
 namespace IcpMonitor.Pages;
 
@@ -121,7 +121,8 @@ internal sealed class RssPage(RssService rss, RssOptions options) : Page
         if (link == null || !Uri.TryCreate(link, UriKind.Absolute, out Uri? uri) || uri.Scheme is not ("http" or "https")) return;
         try
         {
-            Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true })?.Dispose();
+            // Browser nie mit Adminrechten starten.
+            Unelevated.Open(uri.AbsoluteUri);
         }
         catch (Exception ex)
         {

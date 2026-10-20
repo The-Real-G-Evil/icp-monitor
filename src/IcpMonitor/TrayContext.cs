@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using IcpMonitor.Pages;
+using IcpMonitor.Security;
 using IcpMonitor.Sensors;
 using IcpMonitor.Ui;
 using IcpMonitor.Update;
@@ -135,10 +136,11 @@ internal sealed class TrayContext : ApplicationContext
         }
 
         using var dialog = new UpdateDialog(updates, info);
-        if (dialog.ShowDialog() != DialogResult.OK || dialog.InstallerPath == null) return;
+        if (dialog.ShowDialog() != DialogResult.OK || dialog.Installer == null) return;
+        using VerifiedInstaller installer = dialog.Installer;
         try
         {
-            UpdateService.LaunchInstaller(dialog.InstallerPath);
+            installer.Launch();
             ExitThread();
         }
         catch (Exception ex)
@@ -251,6 +253,11 @@ internal sealed class TrayContext : ApplicationContext
     private void ToggleAutostart()
     {
         bool target = !Autostart.IsEnabled();
+        if (target && !Autostart.IsAllowedLocation)
+        {
+            MessageBox.Show(L.AutostartOnlyInstalled, "ICP Monitor", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
         if (Autostart.Set(target) == false)
         {
             MessageBox.Show(L.AutostartFailed, "ICP Monitor", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -287,7 +294,15 @@ internal sealed class TrayContext : ApplicationContext
             MessageBox.Show(L.FileMissing(path), "ICP Monitor", MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
-        Process.Start(new ProcessStartInfo(path) { UseShellExecute = true })?.Dispose();
+        try
+        {
+            // Editor nicht mit Adminrechten oeffnen.
+            Unelevated.Open(path);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"{path} konnte nicht geoeffnet werden", ex);
+        }
     }
 
     /// <summary>Programmsymbol (Assets/app.ico) in der passenden Groesse, Standard: Infobereich.</summary>

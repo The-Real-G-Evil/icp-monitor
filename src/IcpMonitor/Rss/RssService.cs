@@ -22,6 +22,8 @@ internal sealed class RssService : IDisposable
         http = new HttpClient(new SocketsHttpHandler { AutomaticDecompression = System.Net.DecompressionMethods.All })
         {
             Timeout = TimeSpan.FromSeconds(20),
+            // Schutz vor riesigen Antworten: Feeds sind normalerweise wenige hundert KB.
+            MaxResponseContentBufferSize = 10 * 1024 * 1024,
         };
         http.DefaultRequestHeaders.UserAgent.ParseAdd("IcpMonitor/0.2 (+RSS)");
     }

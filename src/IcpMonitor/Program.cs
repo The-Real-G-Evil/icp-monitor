@@ -15,6 +15,8 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        if (IsAdmin()) Security.SafeFiles.EnableRedirectionTrust();
+
         // "--autostart on|off": nur Autostart einrichten/entfernen und beenden (vom Tray-Menue erhoeht gestartet und vom Installer).
         int autostartIndex = Array.IndexOf(args, Autostart.Argument);
         if (autostartIndex >= 0)

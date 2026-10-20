@@ -100,6 +100,11 @@ internal sealed class AppConfig
     {
         Normalize();
         string tempPath = FilePath + ".tmp";
+        // Nie durch Verknuepfungen hindurch schreiben (siehe SafeFiles).
+        if (!Security.SafeFiles.IsSafeTarget(FilePath) || !Security.SafeFiles.IsSafeTarget(tempPath))
+        {
+            throw new IOException($"{FilePath} ist eine Verknüpfung oder hat weitere Links – aus Sicherheitsgründen nicht gespeichert.");
+        }
         File.WriteAllText(tempPath, JsonSerializer.Serialize(this, JsonOptions));
         File.Move(tempPath, FilePath, overwrite: true);
         Log.Info("Konfiguration gespeichert.");

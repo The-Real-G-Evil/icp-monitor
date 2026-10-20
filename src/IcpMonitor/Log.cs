@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using IcpMonitor.Security;
 
 namespace IcpMonitor;
 
@@ -25,8 +26,13 @@ internal static class Log
         {
             try
             {
+                // Nie durch Verknuepfungen hindurch schreiben (siehe SafeFiles).
+                if (!SafeFiles.IsSafeTarget(FilePath)) return;
                 var info = new FileInfo(FilePath);
-                if (info.Exists && info.Length > MaxSize) File.Move(FilePath, FilePath + ".old", overwrite: true);
+                if (info.Exists && info.Length > MaxSize && SafeFiles.IsSafeTarget(FilePath + ".old"))
+                {
+                    File.Move(FilePath, FilePath + ".old", overwrite: true);
+                }
                 File.AppendAllText(FilePath, line);
             }
             catch

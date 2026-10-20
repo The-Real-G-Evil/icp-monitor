@@ -220,7 +220,9 @@ internal sealed partial class SensorService : IDisposable
             var sb = new StringBuilder();
             sb.AppendLine($"Sensorliste vom {DateTime.Now:yyyy-MM-dd HH:mm:ss}, Administrator: {isAdmin}");
             foreach (IHardware hardware in pc.Hardware) DumpHardware(sb, hardware, 0);
-            File.WriteAllText(DumpPath, sb.ToString());
+            // Nie durch Verknuepfungen hindurch schreiben (siehe SafeFiles).
+            if (Security.SafeFiles.IsSafeTarget(DumpPath)) File.WriteAllText(DumpPath, sb.ToString());
+            else Log.Warn("sensors.txt ist eine Verknuepfung - nicht geschrieben.");
         }
         catch (Exception ex)
         {

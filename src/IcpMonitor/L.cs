@@ -55,6 +55,9 @@ internal static class L
     public static string TrayTestPage => S("ICP-Testseite anzeigen", "Show ICP test page");
     public static string TrayAutostart => S("Mit Windows starten", "Start with Windows");
     public static string TrayPause => S("Pausieren", "Pause");
+    public static string AutostartOnlyInstalled => S(
+        "Der Autostart ist nur für die installierte Version (unter „Programme“) möglich. Bitte ICP Monitor über den Installer installieren.",
+        "Autostart is only available for the installed version (under \"Program Files\"). Please install ICP Monitor with the installer.");
     public static string TrayPausedTip(string? game) => game != null
         ? S($"Pausiert – {game} läuft", $"Paused – {game} is running")
         : S("Pausiert", "Paused");

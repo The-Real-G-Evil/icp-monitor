@@ -1,9 +1,9 @@
-using System.Diagnostics;
 using IcpMonitor.Device;
 using IcpMonitor.Display;
 using IcpMonitor.Games;
 using IcpMonitor.Pages;
 using IcpMonitor.Rss;
+using IcpMonitor.Security;
 using IcpMonitor.Sensors;
 
 namespace IcpMonitor;
@@ -385,13 +385,8 @@ internal sealed class MonitorApp : IDisposable
         {
             try
             {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = action.Command,
-                    Arguments = action.Arguments,
-                    WorkingDirectory = AppContext.BaseDirectory,
-                    UseShellExecute = true,
-                })?.Dispose();
+                // Befehle stammen aus der vom Benutzer beschreibbaren config.json - nie mit Adminrechten ausfuehren.
+                Unelevated.Run(action.Command, action.Arguments, AppContext.BaseDirectory);
                 Log.Info($"Aktion {digit} gestartet: {action.Command} {action.Arguments}");
             }
             catch (Exception ex)
