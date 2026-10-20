@@ -55,6 +55,8 @@ Name: "{autodesktop}\ICP Monitor"; Filename: "{app}\IcpMonitor.exe"; Tasks: desk
 Filename: "{app}\IcpMonitor.exe"; Parameters: "--autostart on"; Flags: runhidden waituntilterminated; Tasks: autostart
 Filename: "{app}\IcpMonitor.exe"; Parameters: "--autostart off"; Flags: runhidden waituntilterminated; Tasks: not autostart
 Filename: "{app}\IcpMonitor.exe"; Description: "{cm:LaunchApp}"; Flags: nowait postinstall skipifsilent
+; Update aus der App heraus (/SILENT): danach automatisch wieder starten.
+Filename: "{app}\IcpMonitor.exe"; Flags: nowait; Check: WizardSilent
 
 [UninstallRun]
 Filename: "{app}\IcpMonitor.exe"; Parameters: "--autostart off"; Flags: runhidden waituntilterminated; RunOnceId: "RemoveAutostart"

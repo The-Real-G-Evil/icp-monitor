@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using IcpMonitor.Device;
 using IcpMonitor.Display;
+using IcpMonitor.Games;
 using IcpMonitor.Pages;
 using IcpMonitor.Rss;
 using IcpMonitor.Sensors;
@@ -45,12 +46,28 @@ internal sealed class MonitorApp : IDisposable
     private readonly Dictionary<int, byte> sentLights = new();
     private volatile bool lightsPending = true;
 
+    // Pause: solange ein Simulator laeuft (oder von Hand) gehoert das ICP einem anderen Programm.
+    private static readonly TimeSpan PauseNoticeDuration = TimeSpan.FromSeconds(3);
+    private readonly GameWatcher games;
+    private bool manualPause;
+    private string? activeGame;
+    private DateTime pauseStarted;
+    private volatile bool paused;
+    private volatile bool redrawAfterPause;
+
     public MonitorApp(AppConfig config)
     {
         this.config = config;
         sensors = new SensorService(config.SensorIntervalMs);
         slots = BuildSlots(config);
         slotIndex = Math.Max(0, Array.FindIndex(slots, s => s.Label.Equals(config.StartSlot, StringComparison.OrdinalIgnoreCase)));
+
+        games = new GameWatcher(() => { lock (sync) return this.config.Pause; });
+        games.ActiveChanged += game =>
+        {
+            lock (sync) activeGame = game;
+            UpdatePause();
+        };
 
         device.InputReport += report =>
         {
@@ -95,6 +112,53 @@ internal sealed class MonitorApp : IDisposable
 
     public bool TestPageActive { get { lock (sync) return overlayPage != null; } }
 
+    /// <summary>Pausiert: keine Ausgabe auf das ICP, Tasten und Potis werden ignoriert.</summary>
+    public bool IsPaused => paused;
+
+    public bool ManualPause { get { lock (sync) return manualPause; } }
+
+    public bool UpdateCheckEnabled { get { lock (sync) return config.CheckForUpdates; } }
+
+    /// <summary>Name des laufenden Simulators, der die Pause ausgeloest hat, sonst null.</summary>
+    public string? ActiveGame { get { lock (sync) return activeGame; } }
+
+    public void SetManualPause(bool pause)
+    {
+        lock (sync) manualPause = pause;
+        UpdatePause();
+    }
+
+    private void UpdatePause()
+    {
+        bool nowPaused;
+        bool changed;
+        string reason;
+        lock (sync)
+        {
+            nowPaused = manualPause || activeGame != null;
+            changed = nowPaused != paused;
+            if (changed && nowPaused) pauseStarted = DateTime.Now;
+            paused = nowPaused;
+            reason = activeGame ?? "manuell";
+        }
+
+        if (changed)
+        {
+            if (nowPaused)
+            {
+                Log.Info($"ICP Monitor pausiert ({reason}).");
+            }
+            else
+            {
+                Log.Info("Pause beendet.");
+                redrawAfterPause = true;
+                RestoreLights();
+            }
+        }
+        wake.Set();
+        OnStateChanged();
+    }
+
     /// <summary>Blendet die ICP-Testseite ein oder aus. Jede Seitentaste am ICP blendet sie ebenfalls aus.</summary>
     public void ToggleTestPage()
     {
@@ -114,7 +178,7 @@ internal sealed class MonitorApp : IDisposable
     {
         IcpPage? test;
         lock (sync) test = overlayPage as IcpPage;
-        if (test == null) return;
+        if (test == null || paused) return;
         int percent = input.Current.Poti(IcpPoti.RetDepr);
         if (device.WriteLight((byte)test.TestChannel, (byte)Math.Round(percent * 2.55)))
         {
@@ -139,6 +203,7 @@ internal sealed class MonitorApp : IDisposable
     {
         sensors.Start();
         device.Start();
+        games.Start();
         renderThread = new Thread(RenderLoop) { IsBackground = true, Name = "DED-Render" };
         renderThread.Start();
     }
@@ -226,6 +291,8 @@ internal sealed class MonitorApp : IDisposable
     /// </summary>
     private void ApplyLights()
     {
+        // Waehrend der Pause steuert der Simulator die Beleuchtung; danach stellt RestoreLights alles wieder her.
+        if (paused) return;
         IcpInputSnapshot state = input.Current;
         if (ReferenceEquals(state, IcpInputSnapshot.Empty)) return;
         LightConfig lights;
@@ -254,6 +321,8 @@ internal sealed class MonitorApp : IDisposable
 
     private void HandleButton(IcpButton button)
     {
+        // Waehrend der Pause gehoert das ICP dem Simulator - keine Seitenwechsel, keine Aktionen.
+        if (paused) return;
         Log.Info($"Taste {IcpLayout.Label(button)}");
         // Ist das Display aus, weckt jede Taste es nur auf.
         if (!DisplayOn)
@@ -350,6 +419,7 @@ internal sealed class MonitorApp : IDisposable
         byte[]? lastFrame = null;
         DateTime lastWrite = DateTime.MinValue;
         bool wasConnected = false;
+        bool pauseBlanked = false;
 
         while (!cts.IsCancellationRequested)
         {
@@ -358,9 +428,38 @@ internal sealed class MonitorApp : IDisposable
                 bool connected = device.IsConnected;
                 if (connected && !wasConnected) lastFrame = null; // nach (Wieder-)Verbinden sofort neu zeichnen
                 wasConnected = connected;
-
-                if (connected)
+                if (redrawAfterPause)
                 {
+                    redrawAfterPause = false;
+                    lastFrame = null;
+                }
+
+                if (connected && paused)
+                {
+                    // Erst kurz den Hinweis zeigen, dann einmal leeren und danach nichts mehr senden.
+                    DateTime started;
+                    lock (sync) started = pauseStarted;
+                    if (DateTime.Now - started < PauseNoticeDuration)
+                    {
+                        BuildPauseScreen(screen);
+                        byte[] notice = screen.Render(DedFont.Instance);
+                        if (lastFrame == null || !notice.AsSpan().SequenceEqual(lastFrame))
+                        {
+                            if (device.WriteFrame(notice)) LogScreen(screen);
+                            lastFrame = notice;
+                        }
+                        pauseBlanked = false;
+                    }
+                    else if (!pauseBlanked)
+                    {
+                        device.WriteFrame(new DedScreen().Render(DedFont.Instance));
+                        pauseBlanked = true;
+                        lastFrame = null;
+                    }
+                }
+                else if (connected)
+                {
+                    pauseBlanked = false;
                     BuildScreen(screen);
                     byte[] frame = screen.Render(DedFont.Instance);
                     if (lastFrame == null || !frame.AsSpan().SequenceEqual(lastFrame) || DateTime.Now - lastWrite > KeepAliveInterval)
@@ -413,6 +512,31 @@ internal sealed class MonitorApp : IDisposable
         if (status != null) screen.WriteLine(DedScreen.Rows - 1, DedFont.Instance.Sanitize(status), invert: true);
     }
 
+    /// <summary>
+    /// <code>
+    ///    DCS WORLD GESTARTET.
+    ///
+    ///     ICP MONITOR WIRD
+    ///         PAUSIERT.
+    /// </code>
+    /// </summary>
+    private void BuildPauseScreen(DedScreen screen)
+    {
+        screen.Clear();
+        string? game;
+        lock (sync) game = activeGame;
+        List<string> pausedLines = DedText.Wrap(L.DedMonitorPaused, DedScreen.Columns, 2);
+        if (game == null)
+        {
+            for (int i = 0; i < pausedLines.Count; i++) screen.WriteCentered(1 + i, pausedLines[i]);
+            return;
+        }
+
+        List<string> startedLines = DedText.Wrap(DedText.Normalize(L.DedGameStarted(game)), DedScreen.Columns, 2);
+        for (int i = 0; i < startedLines.Count; i++) screen.WriteCentered(startedLines.Count == 1 ? 1 : i, startedLines[i]);
+        for (int i = 0; i < pausedLines.Count; i++) screen.WriteCentered(3 + i, pausedLines[i]);
+    }
+
     private static void RenderEmpty(DedScreen screen, string slotLabel)
     {
         screen.WriteCentered(1, L.DedKeyLabel(slotLabel));
@@ -429,8 +553,9 @@ internal sealed class MonitorApp : IDisposable
     {
         cts.Cancel();
         renderThread?.Join(TimeSpan.FromSeconds(2));
-        // Display beim Beenden leeren, damit keine veralteten Werte stehen bleiben.
-        if (device.IsConnected) device.WriteFrame(new DedScreen().Render(DedFont.Instance));
+        games.Dispose();
+        // Display beim Beenden leeren, damit keine veralteten Werte stehen bleiben - ausser ein Simulator nutzt es gerade.
+        if (device.IsConnected && !paused) device.WriteFrame(new DedScreen().Render(DedFont.Instance));
         device.Dispose();
         sensors.Dispose();
         Rss.Dispose();

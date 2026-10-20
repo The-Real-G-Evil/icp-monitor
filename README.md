@@ -53,6 +53,29 @@ Tasten nach und zeigt eine pixelgenaue Vorschau des DED. Dort lässt sich auch d
 Seitentypen: System, Prozessor, Grafikkarte, Speicher, Laufwerke, Netzwerk, Uhr, RSS-Reader.
 Der RSS-Reader liest RSS 2.0, RSS 1.0 und Atom, mischt mehrere Feeds nach Datum und lädt alle 10 Minuten neu.
 
+## Pause für Flugsimulatoren
+
+Solange ein Simulator läuft, überlässt ICP Monitor das ICP komplett dem Simulator bzw. SimAppPro:
+Das DED zeigt drei Sekunden „DCS WORLD GESTARTET. ICP MONITOR WIRD PAUSIERT.“ und wird dann leer;
+Tasten, Potis und Beleuchtung werden nicht mehr angefasst. Wenige Sekunden nach dem Beenden des
+Simulators geht es automatisch weiter.
+
+Erkannt werden DCS World, Microsoft Flight Simulator 2020/2024, Falcon BMS und X-Plane; SimAppPro
+steht abwählbar in der Liste (standardmäßig aus, weil es oft dauerhaft im Hintergrund läuft).
+Weitere Programme lassen sich im Einstellungsfenster (Reiter „Spiele“) hinzufügen – per exe-Datei
+oder aus den gerade laufenden Programmen. Im Tray-Menü gibt es zusätzlich „Pausieren“ von Hand.
+
+## Updates
+
+Die App sucht beim Start und alle sechs Stunden auf GitHub nach einer neueren Version und meldet sie
+am Tray-Symbol. Nach Bestätigung lädt sie den Installer herunter, prüft ihn gegen die mitveröffentlichte
+SHA-256-Prüfsumme und installiert ihn ohne weitere Fragen; danach startet die neue Version. Ohne passende
+Prüfsumme wird nichts installiert. Abschaltbar im Einstellungsfenster (Reiter „Allgemein“).
+
+Ein Release braucht dafür beide Dateien aus `artifacts`: `ICP-Monitor-Setup-<Version>.exe` und
+`ICP-Monitor-Setup-<Version>.exe.sha256` (erzeugt `build-installer.ps1`). Die Update-Suche funktioniert
+nur, wenn das Repository öffentlich ist.
+
 ## ICP-Testseite
 
 Zeigt die zuletzt gedrückte Taste, die Schalterstellungen und alle Potis. Zusätzlich ein Lichttest:

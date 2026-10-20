@@ -1,4 +1,7 @@
+using System.Diagnostics;
+using IcpMonitor.Games;
 using IcpMonitor.Pages;
+using IcpMonitor.Update;
 
 namespace IcpMonitor.Ui;
 
@@ -36,11 +39,17 @@ internal sealed class SettingsForm : Form
     private bool loading;
     private bool dirty;
 
+    private readonly Func<Task> checkUpdates;
+    private readonly CheckedListBox gamesList = new();
+    private readonly Button removeGameButton = new();
+
     /// <param name="reopen">Schliesst das Fenster und oeffnet es neu (nach einem Sprachwechsel).</param>
-    public SettingsForm(MonitorApp app, Action reopen)
+    /// <param name="checkUpdates">Sucht von Hand nach einer neuen Version (Tray-Logik).</param>
+    public SettingsForm(MonitorApp app, Action reopen, Func<Task> checkUpdates)
     {
         this.app = app;
         this.reopen = reopen;
+        this.checkUpdates = checkUpdates;
         draft = app.CloneConfig();
 
         Text = L.SettingsTitle;
@@ -54,9 +63,10 @@ internal sealed class SettingsForm : Form
         AutoSizeMode = AutoSizeMode.GrowAndShrink;
 
         var root = new TableLayoutPanel { AutoSize = true, ColumnCount = 1, Padding = new Padding(12), Dock = DockStyle.Fill };
-        root.Controls.Add(BuildIcpPanel());
-        root.Controls.Add(BuildSlotGroup());
-        root.Controls.Add(BuildGeneralGroup());
+        root.Controls.Add(BuildTabs(
+            (L.TabKeys, Stack(BuildIcpPanel(), BuildSlotGroup())),
+            (L.TabGames, BuildGamesTab()),
+            (L.SettingsGeneral, Stack(BuildGeneralGroup(), BuildUpdatesGroup()))));
         root.Controls.Add(BuildButtonBar());
         Controls.Add(root);
 
@@ -76,6 +86,152 @@ internal sealed class SettingsForm : Form
     private SlotConfig CurrentSlot => draft.Slot(AppConfig.SlotButtons[selected]);
 
     // ---------- Aufbau ----------
+
+    /// <summary>Reiter, alle so gross wie der groesste Inhalt (TabControl waechst nicht selbst mit).</summary>
+    private static TabControl BuildTabs(params (string Title, Control Content)[] pages)
+    {
+        var tabs = new TabControl();
+        Size max = Size.Empty;
+        foreach ((string title, Control content) in pages)
+        {
+            var page = new TabPage(title) { Padding = new Padding(8), UseVisualStyleBackColor = true };
+            content.Location = new Point(page.Padding.Left, page.Padding.Top);
+            page.Controls.Add(content);
+            tabs.TabPages.Add(page);
+            Size preferred = content.GetPreferredSize(Size.Empty);
+            max = new Size(Math.Max(max.Width, preferred.Width), Math.Max(max.Height, preferred.Height));
+        }
+        tabs.Size = new Size(max.Width + 16 + 8, max.Height + 16 + tabs.ItemSize.Height + 12);
+        return tabs;
+    }
+
+    /// <summary>Steuerelemente untereinander, gleich breit.</summary>
+    private static Control Stack(params Control[] controls)
+    {
+        var stack = new TableLayoutPanel { AutoSize = true, ColumnCount = 1, Margin = new Padding(0) };
+        foreach (Control control in controls) stack.Controls.Add(control);
+        return stack;
+    }
+
+    /// <summary>Vorrang fuer Spiele: Liste der Programme, die eine Pause ausloesen.</summary>
+    private Control BuildGamesTab()
+    {
+        var layout = new TableLayoutPanel { AutoSize = true, ColumnCount = 1, Margin = new Padding(0) };
+
+        var enabled = new CheckBox { Text = L.GamesAutoPause, AutoSize = true, Checked = draft.Pause.Enabled, Margin = new Padding(3, 3, 3, 6) };
+        enabled.CheckedChanged += (_, _) =>
+        {
+            draft.Pause.Enabled = enabled.Checked;
+            gamesList.Enabled = enabled.Checked;
+            MarkDirty();
+        };
+        layout.Controls.Add(enabled);
+        layout.Controls.Add(new Label { Text = L.GamesExplain, AutoSize = true, MaximumSize = new Size(620, 0), ForeColor = SystemColors.GrayText, Margin = new Padding(3, 0, 3, 8) });
+
+        gamesList.Size = new Size(620, 220);
+        gamesList.CheckOnClick = true;
+        gamesList.IntegralHeight = false;
+        gamesList.Enabled = draft.Pause.Enabled;
+        gamesList.ItemCheck += (_, e) =>
+        {
+            if (loading) return;
+            var item = (GameItem)gamesList.Items[e.Index];
+            bool on = e.NewValue == CheckState.Checked;
+            if (item.BuiltIn != null) draft.Pause.BuiltIn[item.BuiltIn.Id] = on;
+            else if (item.Custom != null) item.Custom.Enabled = on;
+            MarkDirty();
+        };
+        gamesList.SelectedIndexChanged += (_, _) => removeGameButton.Enabled = gamesList.SelectedItem is GameItem { Custom: not null };
+        layout.Controls.Add(gamesList);
+        FillGamesList();
+
+        var buttons = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0, 6, 0, 0) };
+        var addExe = new Button { Text = L.GamesAddExe, AutoSize = true };
+        addExe.Click += (_, _) => AddGameFromFile();
+        var addRunning = new Button { Text = L.GamesAddRunning, AutoSize = true };
+        addRunning.Click += (_, _) => AddGameFromRunning();
+        removeGameButton.Text = L.GamesRemove;
+        removeGameButton.AutoSize = true;
+        removeGameButton.Enabled = false;
+        removeGameButton.Click += (_, _) =>
+        {
+            if (gamesList.SelectedItem is not GameItem { Custom: { } custom }) return;
+            draft.Pause.Custom.Remove(custom);
+            FillGamesList();
+            MarkDirty();
+        };
+        buttons.Controls.AddRange([addExe, addRunning, removeGameButton]);
+        layout.Controls.Add(buttons);
+        return layout;
+    }
+
+    private void FillGamesList()
+    {
+        loading = true;
+        gamesList.Items.Clear();
+        foreach (GameDefinition game in GameCatalog.BuiltIn)
+        {
+            string exes = string.Join(", ", game.Processes.Select(p => p + ".exe"));
+            gamesList.Items.Add(new GameItem($"{game.Name}  ({exes})", game, null), draft.Pause.IsEnabled(game));
+        }
+        foreach (CustomProgram custom in draft.Pause.Custom)
+        {
+            gamesList.Items.Add(new GameItem($"{custom.Name}  ({custom.Process}.exe)", null, custom), custom.Enabled);
+        }
+        loading = false;
+        removeGameButton.Enabled = false;
+    }
+
+    private void AddGameFromFile()
+    {
+        using var dialog = new OpenFileDialog { Filter = L.GamesExeFilter, Title = L.GamesAddExe.TrimEnd('.', ' ') };
+        if (dialog.ShowDialog(this) != DialogResult.OK) return;
+        string? description = null;
+        try { description = FileVersionInfo.GetVersionInfo(dialog.FileName).FileDescription; } catch { }
+        string process = GameCatalog.ProcessNameFromPath(dialog.FileName);
+        AddCustomGame(string.IsNullOrWhiteSpace(description) ? process : description.Trim(), process);
+    }
+
+    private void AddGameFromRunning()
+    {
+        using var dialog = new ProcessPickerDialog();
+        if (dialog.ShowDialog(this) != DialogResult.OK || dialog.SelectedProcess == null) return;
+        AddCustomGame(dialog.SelectedName ?? dialog.SelectedProcess, dialog.SelectedProcess);
+    }
+
+    private void AddCustomGame(string name, string process)
+    {
+        bool known = draft.Pause.Custom.Any(c => c.Process.Equals(process, StringComparison.OrdinalIgnoreCase))
+            || GameCatalog.BuiltIn.Any(g => g.Processes.Contains(process, StringComparer.OrdinalIgnoreCase));
+        if (known) return;
+        draft.Pause.Custom.Add(new CustomProgram { Name = name, Process = process });
+        FillGamesList();
+        MarkDirty();
+    }
+
+    private Control BuildUpdatesGroup()
+    {
+        var group = new GroupBox { Text = L.UpdatesGroup, Dock = DockStyle.Fill, AutoSize = true, Padding = new Padding(10), Margin = new Padding(3, 10, 3, 3) };
+        var layout = new TableLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, ColumnCount = 1 };
+        layout.Controls.Add(new Label { Text = L.InstalledVersion(UpdateService.CurrentVersion), AutoSize = true, Margin = new Padding(3, 3, 3, 6) });
+        var auto = new CheckBox { Text = L.UpdatesAuto, AutoSize = true, Checked = draft.CheckForUpdates };
+        auto.CheckedChanged += (_, _) =>
+        {
+            draft.CheckForUpdates = auto.Checked;
+            MarkDirty();
+        };
+        layout.Controls.Add(auto);
+        var now = new Button { Text = L.UpdatesCheckNow, AutoSize = true, Margin = new Padding(3, 8, 3, 3) };
+        now.Click += async (_, _) =>
+        {
+            now.Enabled = false;
+            try { await checkUpdates(); }
+            finally { if (!now.IsDisposed) now.Enabled = true; }
+        };
+        layout.Controls.Add(now);
+        group.Controls.Add(layout);
+        return group;
+    }
 
     /// <summary>Nachbildung des ICP: DED oben, darunter die sechs Seitentasten.</summary>
     private Control BuildIcpPanel()
@@ -391,4 +547,10 @@ internal sealed class SettingsForm : Form
     }
 
     private sealed record LanguageChoice(string Code, string Text);
+
+    /// <summary>Eintrag der Spiele-Liste: entweder eingebaut oder selbst hinzugefuegt.</summary>
+    private sealed record GameItem(string Text, GameDefinition? BuiltIn, CustomProgram? Custom)
+    {
+        public override string ToString() => Text;
+    }
 }

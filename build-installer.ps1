@@ -24,4 +24,10 @@ if (-not $iscc) { throw 'Inno Setup 6 nicht gefunden (winget install JRSoftware.
 & $iscc "/DAppVersion=$version" "/DPublishDir=$publish" (Join-Path $root 'installer\IcpMonitor.iss')
 if ($LASTEXITCODE -ne 0) { throw 'Inno Setup fehlgeschlagen.' }
 
-Get-Item (Join-Path $root "artifacts\ICP-Monitor-Setup-$version.exe") | Select-Object FullName, @{ n = 'MB'; e = { [math]::Round($_.Length / 1MB, 1) } }
+# Pruefsumme fuer das Auto-Update (die App installiert nur, wenn sie passt).
+# Beim Release beide Dateien hochladen: Setup-.exe und .exe.sha256
+$setup = Join-Path $root "artifacts\ICP-Monitor-Setup-$version.exe"
+$hash = (Get-FileHash $setup -Algorithm SHA256).Hash.ToLowerInvariant()
+[IO.File]::WriteAllText("$setup.sha256", "$hash  $(Split-Path $setup -Leaf)`n")
+
+Get-Item $setup, "$setup.sha256" | Select-Object FullName, @{ n = 'MB'; e = { [math]::Round($_.Length / 1MB, 1) } }

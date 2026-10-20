@@ -3,6 +3,7 @@ using System.Diagnostics;
 using IcpMonitor.Pages;
 using IcpMonitor.Sensors;
 using IcpMonitor.Ui;
+using IcpMonitor.Update;
 
 namespace IcpMonitor;
 
@@ -19,8 +20,19 @@ internal sealed class TrayContext : ApplicationContext
     private ToolStripMenuItem displayItem = null!;
     private ToolStripMenuItem testPageItem = null!;
     private ToolStripMenuItem autostartItem = null!;
+    private ToolStripMenuItem pauseItem = null!;
+    private ToolStripMenuItem updateItem = null!;
     private Language menuLanguage;
     private SettingsForm? settingsForm;
+
+    // Update-Suche: kurz nach dem Start, danach alle paar Stunden.
+    private static readonly TimeSpan FirstUpdateCheck = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan UpdateCheckInterval = TimeSpan.FromHours(6);
+    private readonly UpdateService updates = new();
+    private readonly System.Windows.Forms.Timer updateTimer;
+    private UpdateInfo? availableUpdate;
+    private Version? notifiedVersion;
+    private bool updateBusy;
 
     public TrayContext(MonitorApp app, bool isAdmin)
     {
@@ -58,6 +70,83 @@ internal sealed class TrayContext : ApplicationContext
         };
         refreshTimer.Start();
         RefreshTooltip();
+
+        notifyIcon.BalloonTipClicked += (_, _) => { if (availableUpdate != null) InstallUpdate(availableUpdate); };
+        updateTimer = new System.Windows.Forms.Timer { Interval = (int)FirstUpdateCheck.TotalMilliseconds };
+        updateTimer.Tick += async (_, _) =>
+        {
+            updateTimer.Interval = (int)UpdateCheckInterval.TotalMilliseconds;
+            if (app.UpdateCheckEnabled) await CheckForUpdatesAsync(interactive: false);
+        };
+        updateTimer.Start();
+    }
+
+    /// <summary>
+    /// Sucht nach einer neuen Version. Automatisch: nur ein Hinweis am Tray-Symbol (einmal je Version).
+    /// Von Hand: Ergebnis immer per Meldung, bei neuer Version direkt die Installationsfrage.
+    /// </summary>
+    public async Task CheckForUpdatesAsync(bool interactive)
+    {
+        if (updateBusy) return;
+        updateBusy = true;
+        try
+        {
+            UpdateCheckResult result = await updates.CheckAsync();
+            availableUpdate = result.Status == UpdateStatus.Available ? result.Info : null;
+            Log.Info($"Update-Suche: {result.Status} {result.Info?.Version}");
+
+            if (availableUpdate != null && !interactive && notifiedVersion != availableUpdate.Version)
+            {
+                notifiedVersion = availableUpdate.Version;
+                notifyIcon.ShowBalloonTip(15000, L.UpdateTitle, L.UpdateAvailableBalloon(availableUpdate.Version), ToolTipIcon.Info);
+            }
+            if (!interactive) return;
+
+            switch (result.Status)
+            {
+                case UpdateStatus.Available:
+                    InstallUpdate(availableUpdate!);
+                    break;
+                case UpdateStatus.UpToDate:
+                    MessageBox.Show(L.UpdateUpToDate(UpdateService.CurrentVersion), L.UpdateTitle, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    break;
+                case UpdateStatus.NoReleases:
+                    MessageBox.Show(L.UpdateNoReleases, L.UpdateTitle, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    break;
+                default:
+                    MessageBox.Show(L.UpdateFailed(result.Error ?? ""), L.UpdateTitle, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    break;
+            }
+        }
+        finally
+        {
+            updateBusy = false;
+        }
+    }
+
+    /// <summary>Nachfragen, herunterladen, pruefen, Installer starten und die App beenden.</summary>
+    private void InstallUpdate(UpdateInfo info)
+    {
+        string notes = info.Notes.Length > 600 ? info.Notes[..600] + " ..." : info.Notes;
+        if (MessageBox.Show(L.UpdateConfirm(UpdateService.CurrentVersion, info.Version, notes), L.UpdateTitle,
+                MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+        {
+            return;
+        }
+
+        using var dialog = new UpdateDialog(updates, info);
+        if (dialog.ShowDialog() != DialogResult.OK || dialog.InstallerPath == null) return;
+        try
+        {
+            UpdateService.LaunchInstaller(dialog.InstallerPath);
+            ExitThread();
+        }
+        catch (Exception ex)
+        {
+            // Abgebrochene UAC-Abfrage o. ae.
+            Log.Error("Update-Installer konnte nicht gestartet werden", ex);
+            MessageBox.Show(L.UpdateInstallFailed(ex.Message), L.UpdateTitle, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
     }
 
     private ContextMenuStrip BuildMenu()
@@ -68,13 +157,21 @@ internal sealed class TrayContext : ApplicationContext
         displayItem = new ToolStripMenuItem(L.TrayDisplayOn, null, (_, _) => app.SetDisplayOn(!app.DisplayOn));
         testPageItem = new ToolStripMenuItem(L.TrayTestPage, null, (_, _) => app.ToggleTestPage());
         autostartItem = new ToolStripMenuItem(L.TrayAutostart, null, (_, _) => ToggleAutostart());
+        pauseItem = new ToolStripMenuItem(L.TrayPause, null, (_, _) => app.SetManualPause(!app.ManualPause));
+        updateItem = new ToolStripMenuItem("", null, (_, _) => { if (availableUpdate != null) InstallUpdate(availableUpdate); })
+        {
+            Font = new Font(SystemFonts.MenuFont ?? Control.DefaultFont, FontStyle.Bold),
+            Visible = false,
+        };
 
         var menu = new ContextMenuStrip();
         menu.Items.Add(new ToolStripMenuItem(L.TraySettings, null, (_, _) => ShowSettings()) { Font = new Font(menu.Font, FontStyle.Bold) });
+        menu.Items.Add(updateItem);
         menu.Items.Add(statusItem);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(pagesItem);
         menu.Items.Add(displayItem);
+        menu.Items.Add(pauseItem);
         menu.Items.Add(testPageItem);
         menu.Items.Add(new ToolStripSeparator());
         if (!isAdmin)
@@ -84,6 +181,7 @@ internal sealed class TrayContext : ApplicationContext
         menu.Items.Add(new ToolStripMenuItem(L.TrayOpenSensors, null, (_, _) => OpenFile(SensorService.DumpPath)));
         menu.Items.Add(new ToolStripMenuItem(L.TrayOpenConfig, null, (_, _) => OpenFile(AppConfig.FilePath)));
         menu.Items.Add(new ToolStripMenuItem(L.TrayOpenLog, null, (_, _) => OpenFile(Log.FilePath)));
+        menu.Items.Add(new ToolStripMenuItem(L.TrayCheckUpdates, null, async (_, _) => await CheckForUpdatesAsync(interactive: true)));
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(new ToolStripMenuItem(L.TrayExit, null, (_, _) => ExitThread()));
         menu.Opening += (_, _) => RefreshMenu();
@@ -94,7 +192,7 @@ internal sealed class TrayContext : ApplicationContext
     {
         if (settingsForm == null || settingsForm.IsDisposed)
         {
-            settingsForm = new SettingsForm(app, ReopenSettings);
+            settingsForm = new SettingsForm(app, ReopenSettings, () => CheckForUpdatesAsync(interactive: true));
             settingsForm.Show();
         }
         if (settingsForm.WindowState == FormWindowState.Minimized) settingsForm.WindowState = FormWindowState.Normal;
@@ -115,6 +213,9 @@ internal sealed class TrayContext : ApplicationContext
         displayItem.Checked = app.DisplayOn;
         testPageItem.Checked = app.TestPageActive;
         autostartItem.Checked = Autostart.IsEnabled();
+        pauseItem.Checked = app.ManualPause;
+        updateItem.Visible = availableUpdate != null;
+        if (availableUpdate != null) updateItem.Text = L.TrayInstallUpdate(availableUpdate.Version);
 
         // Die Seiten spiegeln die sechs ICP-Tasten wider.
         pagesItem.DropDownItems.Clear();
@@ -137,8 +238,11 @@ internal sealed class TrayContext : ApplicationContext
         SystemSnapshot s = app.Sensors;
         Slot slot = app.Slots[app.SlotIndex];
         string Value(float? v, string unit) => v.HasValue ? $"{v.Value:0}{unit}" : "--";
+        string state = !app.DeviceConnected ? L.TrayNotConnectedTip
+            : app.IsPaused ? L.TrayPausedTip(app.ActiveGame)
+            : $"{slot.Label}: {PageCatalog.Get(slot.Config.Page).DisplayName}";
         string text =
-            $"ICP Monitor - {(app.DeviceConnected ? $"{slot.Label}: {PageCatalog.Get(slot.Config.Page).DisplayName}" : L.TrayNotConnectedTip)}\n" +
+            $"ICP Monitor - {state}\n" +
             $"CPU {Value(s.CpuLoad, "%")} {Value(s.CpuTemp, "°C")}\n" +
             $"GPU {Value(s.GpuLoad, "%")} {Value(s.GpuTemp, "°C")}";
         notifyIcon.Text = text.Length > 127 ? text[..127] : text;
@@ -200,6 +304,8 @@ internal sealed class TrayContext : ApplicationContext
         {
             settingsForm?.Dispose();
             refreshTimer.Dispose();
+            updateTimer.Dispose();
+            updates.Dispose();
             notifyIcon.Visible = false;
             notifyIcon.ContextMenuStrip?.Dispose();
             notifyIcon.Dispose();

@@ -30,6 +30,12 @@ internal sealed class AppConfig
     /// <summary>Hardware-Lichtkanaele, die von den Potis SYM, BRT und CONT gesteuert werden.</summary>
     public LightConfig Lights { get; set; } = new();
 
+    /// <summary>Pause, solange ein Flugsimulator o. ae. das ICP nutzt.</summary>
+    public PauseConfig Pause { get; set; } = new();
+
+    /// <summary>Beim Start und taeglich auf GitHub nach neuen Versionen suchen.</summary>
+    public bool CheckForUpdates { get; set; } = true;
+
     public static string FilePath => AppPaths.ConfigFile;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -104,6 +110,12 @@ internal sealed class AppConfig
         RefreshMs = Math.Clamp(RefreshMs, 100, 5000);
         SensorIntervalMs = Math.Clamp(SensorIntervalMs, 250, 10000);
         Actions = new Dictionary<string, ActionConfig>(Actions, StringComparer.OrdinalIgnoreCase);
+        Pause ??= new PauseConfig();
+        Pause.BuiltIn = new Dictionary<string, bool>(Pause.BuiltIn, StringComparer.OrdinalIgnoreCase);
+        Pause.Custom = Pause.Custom
+            .Where(c => !string.IsNullOrWhiteSpace(c.Process))
+            .Select(c => new CustomProgram { Enabled = c.Enabled, Name = c.Name.Trim(), Process = Games.GameCatalog.ProcessNameFromPath(c.Process) })
+            .ToList();
 
         bool firstStart = Slots.Count == 0;
         // Genau ein Slot je Taste, in Geraete-Reihenfolge.
@@ -171,6 +183,31 @@ internal sealed class LightConfig
 
     /// <summary>Untergrenze fuer das DED in Prozent, damit es nie ganz dunkel wird.</summary>
     public int DisplayMinPercent { get; set; } = 5;
+}
+
+internal sealed class PauseConfig
+{
+    /// <summary>Automatisch pausieren, wenn ein Programm aus der Liste laeuft.</summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>An/Aus je eingebautem Eintrag (Id aus <see cref="Games.GameCatalog"/>); fehlt er, gilt dessen Standard.</summary>
+    public Dictionary<string, bool> BuiltIn { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Selbst hinzugefuegte Programme.</summary>
+    public List<CustomProgram> Custom { get; set; } = [];
+
+    public bool IsEnabled(Games.GameDefinition game) =>
+        BuiltIn.TryGetValue(game.Id, out bool enabled) ? enabled : game.DefaultEnabled;
+}
+
+internal sealed class CustomProgram
+{
+    public bool Enabled { get; set; } = true;
+
+    public string Name { get; set; } = "";
+
+    /// <summary>Prozessname ohne ".exe", z. B. "fgfs".</summary>
+    public string Process { get; set; } = "";
 }
 
 internal sealed class ActionConfig

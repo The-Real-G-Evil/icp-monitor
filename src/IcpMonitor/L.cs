@@ -54,6 +54,30 @@ internal static class L
     public static string TrayDisplayOn => S("Display an", "Display on");
     public static string TrayTestPage => S("ICP-Testseite anzeigen", "Show ICP test page");
     public static string TrayAutostart => S("Mit Windows starten", "Start with Windows");
+    public static string TrayPause => S("Pausieren", "Pause");
+    public static string TrayPausedTip(string? game) => game != null
+        ? S($"Pausiert – {game} läuft", $"Paused – {game} is running")
+        : S("Pausiert", "Paused");
+    public static string TrayCheckUpdates => S("Nach Updates suchen", "Check for updates");
+    public static string TrayInstallUpdate(Version v) => S($"Update auf {v} installieren ...", $"Install update {v} ...");
+
+    // ---------- Updates ----------
+    public static string UpdateTitle => "ICP Monitor – Update";
+    public static string UpdateAvailableBalloon(Version v) => S($"Version {v} ist verfügbar. Hier klicken, um sie zu installieren.",
+                                                                $"Version {v} is available. Click here to install it.");
+    public static string UpdateConfirm(Version current, Version next, string notes) =>
+        S($"ICP Monitor {next} ist verfügbar (installiert: {current}).\n\n{notes}\n\nJetzt herunterladen und installieren? ICP Monitor wird dabei kurz beendet und danach neu gestartet.",
+          $"ICP Monitor {next} is available (installed: {current}).\n\n{notes}\n\nDownload and install now? ICP Monitor will close briefly and restart afterwards.");
+    public static string UpdateUpToDate(Version v) => S($"ICP Monitor {v} ist aktuell.", $"ICP Monitor {v} is up to date.");
+    public static string UpdateNoReleases => S("Auf GitHub wurde keine veröffentlichte Version gefunden.", "No published version was found on GitHub.");
+    public static string UpdateFailed(string message) => S($"Die Update-Suche ist fehlgeschlagen:\n{message}", $"The update check failed:\n{message}");
+    public static string UpdateDownloading(Version v) => S($"Lade ICP Monitor {v} herunter ...", $"Downloading ICP Monitor {v} ...");
+    public static string UpdateInstallFailed(string message) => S($"Das Update konnte nicht installiert werden:\n{message}", $"The update could not be installed:\n{message}");
+    public static string UpdateNoInstaller => S("Das Release enthält keinen Installer.", "The release contains no installer.");
+    public static string UpdateNoChecksum => S("Das Release enthält keine Prüfsumme (.sha256) – aus Sicherheitsgründen wird nicht installiert.",
+                                               "The release contains no checksum (.sha256) – not installing for safety reasons.");
+    public static string UpdateChecksumMismatch => S("Die Prüfsumme des heruntergeladenen Installers stimmt nicht – er wird nicht ausgeführt.",
+                                                     "The checksum of the downloaded installer does not match – it will not be run.");
     public static string AutostartFailed => S("Der Autostart konnte nicht geändert werden. Details stehen in der Logdatei.",
                                               "Autostart could not be changed. See the log file for details.");
     public static string TrayRestartAdmin => S("Als Administrator neu starten (mehr Sensoren)", "Restart as administrator (more sensors)");
@@ -78,7 +102,25 @@ internal static class L
     public static string Ok => "OK";
     public static string Apply => S("Übernehmen", "Apply");
     public static string Close => S("Schließen", "Close");
+    public static string Cancel => S("Abbrechen", "Cancel");
     public static string SettingsGeneral => S("Allgemein", "General");
+    public static string TabKeys => S("ICP-Tasten", "ICP buttons");
+    public static string TabGames => S("Spiele", "Games");
+    public static string GamesAutoPause => S("Automatisch pausieren, solange eines dieser Programme läuft",
+                                             "Pause automatically while one of these programs is running");
+    public static string GamesExplain => S("Während der Pause überlässt ICP Monitor das ICP komplett dem Programm: kein Display, keine Tasten, keine Beleuchtung.",
+                                           "While paused, ICP Monitor leaves the ICP entirely to the program: no display, no buttons, no lighting.");
+    public static string GamesAddExe => S("Programm hinzufügen ...", "Add program ...");
+    public static string GamesAddRunning => S("Aus laufenden Programmen ...", "From running programs ...");
+    public static string GamesRemove => S("Entfernen", "Remove");
+    public static string GamesExeFilter => S("Programme (*.exe)|*.exe", "Programs (*.exe)|*.exe");
+    public static string GamesPickTitle => S("Laufendes Programm auswählen", "Select running program");
+    public static string GamesColumnProcess => S("Programm", "Program");
+    public static string GamesColumnWindow => S("Fenster", "Window");
+    public static string UpdatesGroup => "Updates";
+    public static string UpdatesAuto => S("Beim Start und regelmäßig nach neuen Versionen suchen", "Check for new versions at startup and regularly");
+    public static string UpdatesCheckNow => S("Jetzt nach Updates suchen", "Check for updates now");
+    public static string InstalledVersion(Version v) => S($"Installierte Version: {v}", $"Installed version: {v}");
     public static string AskSaveChanges => S("Änderungen übernehmen?", "Apply changes?");
     public static string SaveFailed(string message) => S($"Die Einstellungen konnten nicht gespeichert werden:\n{message}", $"The settings could not be saved:\n{message}");
 
@@ -145,4 +187,6 @@ internal static class L
     public static string DedLoadingFeeds => S("LADE FEEDS...", "LOADING FEEDS...");
     public static string DedMinutesAgo(int minutes) => S($"VOR {minutes} MIN", $"{minutes} MIN AGO");
     public static string DedHoursAgo(int hours) => S($"VOR {hours} STD", $"{hours} H AGO");
+    public static string DedGameStarted(string game) => S($"{game} gestartet.", $"{game} started.");
+    public static string DedMonitorPaused => S("ICP MONITOR WIRD PAUSIERT.", "ICP MONITOR IS PAUSED.");
 }
