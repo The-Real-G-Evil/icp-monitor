@@ -28,6 +28,8 @@
     <EmbeddedResource Include="Assets\ded_font.bmp" LogicalName="IcpMonitor.ded_font.bmp" />
     <EmbeddedResource Include="Assets\app.ico" LogicalName="IcpMonitor.app.ico" />
     <None Include="Assets\ded_font.LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\LICENSE" Link="LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\THIRD-PARTY-NOTICES.md" Link="THIRD-PARTY-NOTICES.md" CopyToOutputDirectory="PreserveNewest" />
     <None Update="config.default.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
